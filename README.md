@@ -35,6 +35,22 @@ Add a key binding like this:
 Mod+Return { spawn "bash" "-c" "kitty --working-directory=$(ycwd $(niri msg --json focused-window | jq .pid))"; }
 ```
 
+### X.org
+
+ycwd also works on X.org! Run it like this (requires [xdotool](https://github.com/jordansissel/xdotool)):
+
+```sh
+ycwd $(xdotool getwindowfocus getwindowpid)
+```
+
+#### XFCE
+
+On XFCE specifically, configure a keybinding that runs
+
+```sh
+sh -c 'exec exo-open --launch TerminalEmulator --working-directory="$(ycwd $(xdotool getwindowfocus getwindowpid))"'
+```
+
 ### …your Wayland compositor is missing?
 
 I'd be happy about a pull request!
