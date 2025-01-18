@@ -4,6 +4,7 @@
 
 use std::{
     error::Error,
+    ffi::OsStr,
     io::{stdout, Write},
     path::PathBuf,
 };
@@ -57,17 +58,24 @@ impl ProcessTree {
     }
 }
 
+fn print_path<T: AsRef<OsStr>>(path: T) {
+    stdout()
+        .write_all(path.as_ref().as_encoded_bytes())
+        .expect("printing doesn't fail");
+    println!();
+}
+
 fn fallible_main() -> Result<(), Box<dyn Error>> {
     let t = ProcessTree::new(
         std::env::args()
             .nth(1)
-            .ok_or_else(|| "First argument is required.".to_string())?
+            .ok_or("First argument is required.")?
             .parse()?,
     )?;
     let leaves = t.leaf_nodes_with_tty();
 
     // Print cwd of first leaf.
-    println!("{}", leaves[0].cwd.display());
+    print_path(&leaves.first().ok_or("Could not get first leaf node")?.cwd);
 
     Ok(())
 }
@@ -76,8 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Err(error) = fallible_main() {
         eprintln!("Could not get cwd: {error}");
         if let Some(home) = std::env::var_os("HOME") {
-            stdout().write_all(home.as_encoded_bytes())?;
-            println!();
+            print_path(home);
         }
     }
 
