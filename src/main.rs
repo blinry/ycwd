@@ -85,8 +85,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         eprintln!("Could not get cwd: {error}");
         if let Some(home) = std::env::var_os("HOME") {
             print_path(home);
+            Ok(())
+        } else {
+            Err("HOME not set".into())
         }
+    } else {
+        Ok(())
     }
-
-    Ok(())
 }
