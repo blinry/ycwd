@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::path::PathBuf;
+use std::{
+    error::Error,
+    io::{stdout, Write},
+    path::PathBuf,
+};
 
 #[derive(Debug)]
 struct Process {
@@ -17,22 +21,21 @@ struct ProcessTree {
 }
 
 impl ProcessTree {
-    fn new(pid: u32) -> ProcessTree {
-        let p = procfs::process::Process::new(pid as i32).expect("Process should exist");
+    fn new(pid: u32) -> Result<ProcessTree, Box<dyn Error>> {
+        let p = procfs::process::Process::new(pid as i32)?;
         let node = Process {
-            cwd: p.cwd().expect("Process should have a cwd"),
-            tty: p.stat().expect("Process should hav status info").tty_nr,
+            cwd: p.cwd()?,
+            tty: p.stat()?.tty_nr,
         };
 
-        let t = p
-            .task_main_thread()
-            .expect("Process should have main thread");
-        let c_pids = t.children().expect("Task should have children");
+        let t = p.task_main_thread()?;
+        let c_pids = t.children()?;
         let children = c_pids
-            .iter()
-            .map(|&c_pid| ProcessTree::new(c_pid))
-            .collect();
-        ProcessTree { node, children }
+            .into_iter()
+            .map(ProcessTree::new)
+            .collect::<Result<_, _>>()?;
+
+        Ok(ProcessTree { node, children })
     }
 
     fn leaf_nodes_with_tty(&self) -> Vec<&Process> {
@@ -54,16 +57,29 @@ impl ProcessTree {
     }
 }
 
-fn main() {
+fn fallible_main() -> Result<(), Box<dyn Error>> {
     let t = ProcessTree::new(
         std::env::args()
             .nth(1)
-            .expect("PID should be provided as first argument")
-            .parse()
-            .expect("PID should be a number"),
-    );
+            .ok_or_else(|| "First argument is required.".to_string())?
+            .parse()?,
+    )?;
     let leaves = t.leaf_nodes_with_tty();
 
     // Print cwd of first leaf.
     println!("{}", leaves[0].cwd.display());
+
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    if let Err(error) = fallible_main() {
+        eprintln!("Could not get cwd: {error}");
+        if let Some(home) = std::env::var_os("HOME") {
+            stdout().write_all(home.as_encoded_bytes())?;
+            println!();
+        }
+    }
+
+    Ok(())
 }
