@@ -10,7 +10,7 @@ Given the process ID of a terminal emulator, returns its current working directo
 
 Example usage:
 
-```bash
+```sh
 $ ycwd 323994
 /home/blinry/wip/ycwd
 ```
@@ -31,14 +31,14 @@ You will need to find a way to find the correct process ID, how to do that depen
 
 ### niri
 
-Add a key binding like this:
+Add a key binding like this (requires [jq](https://github.com/jqlang/jq)):
 
 ```
-Mod+Return { spawn "bash" "-c" "$term --working-directory=$(ycwd $(niri msg --json focused-window | jq .pid))"; }
+Mod+Return { spawn "bash" "-c" "$term --working-directory=\"$(ycwd $(niri msg --json focused-window | jq .pid))\""; }
 ```
 ### sway
 
-Add a key binding like this:
+Add a key binding like this (requires [jq](https://github.com/jqlang/jq)):
 
 ```
 bindsym $mod+Return exec $term --working-directory="$(ycwd $(swaymsg -t get_tree | jq '.. | select(.type?) | select(.focused==true) | .pid'))"
