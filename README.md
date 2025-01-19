@@ -25,6 +25,8 @@ cargo install ycwd
 
 ## Setup
 
+Look up how to start your terminal emulator in a specific directory. We're assuming that `$term` is your terminal emulator (examples: `kitty` or `foot`), and that it has a `--working-directory` option.
+
 You will need to find a way to find the correct process ID, how to do that depends on your compositor:
 
 ### niri
@@ -32,16 +34,14 @@ You will need to find a way to find the correct process ID, how to do that depen
 Add a key binding like this:
 
 ```
-Mod+Return { spawn "bash" "-c" "kitty --working-directory=$(ycwd $(niri msg --json focused-window | jq .pid))"; }
+Mod+Return { spawn "bash" "-c" "$term --working-directory=$(ycwd $(niri msg --json focused-window | jq .pid))"; }
 ```
-
 ### sway
 
-Courtesy of [this one-liner](https://www.reddit.com/r/swaywm/comments/jzolrq/how_do_i_get_the_pid_of_the_currently_focused/),
-bound to a suitable key combination (and assuming your chosen terminal emulator accepts a `--working-directory` option, eg: `foot`):
+Add a key binding like this:
 
 ```
-bindsym $mod+Return exec $term --working-directory=$(ycwd $(swaymsg -t get_tree | jq '.. | select(.type?) | select(.focused==true) | .pid'))
+bindsym $mod+Return exec $term --working-directory="$(ycwd $(swaymsg -t get_tree | jq '.. | select(.type?) | select(.focused==true) | .pid'))"
 ```
 
 ### X.org
