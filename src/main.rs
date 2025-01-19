@@ -58,38 +58,37 @@ impl ProcessTree {
     }
 }
 
-fn print_path<T: AsRef<OsStr>>(path: T) {
-    stdout()
-        .write_all(path.as_ref().as_encoded_bytes())
-        .expect("printing doesn't fail");
+fn print_path<T: AsRef<OsStr>>(path: T) -> std::io::Result<()> {
+    stdout().write_all(path.as_ref().as_encoded_bytes())?;
     println!();
+    Ok(())
 }
 
-fn fallible_main() -> Result<(), Box<dyn Error>> {
+fn get_path() -> Result<PathBuf, Box<dyn Error>> {
     let t = ProcessTree::new(
         std::env::args()
             .nth(1)
             .ok_or("First argument is required.")?
             .parse()?,
     )?;
-    let leaves = t.leaf_nodes_with_tty();
+    let leafs = t.leaf_nodes_with_tty();
 
-    // Print cwd of first leaf.
-    print_path(&leaves.first().ok_or("Could not get first leaf node")?.cwd);
+    let first_leaf = leafs.first().ok_or("Could not get first leaf node")?;
 
-    Ok(())
+    Ok(first_leaf.cwd.clone())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    if let Err(error) = fallible_main() {
-        eprintln!("Could not get cwd: {error}");
-        if let Some(home) = std::env::var_os("HOME") {
-            print_path(home);
-            Ok(())
-        } else {
-            Err("HOME not set".into())
+fn main() -> std::io::Result<()> {
+    match get_path() {
+        Ok(path) => print_path(path),
+        Err(error) => {
+            eprintln!("Could not get cwd: {error}");
+            if let Some(home) = std::env::var_os("HOME") {
+                print_path(home)
+            } else {
+                eprintln!("HOME not set");
+                print_path("/")
+            }
         }
-    } else {
-        Ok(())
     }
 }
