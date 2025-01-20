@@ -4,10 +4,7 @@
 
 use std::{ops::Deref, path::PathBuf};
 
-use procfs::{
-    process::{Process, Task},
-    ProcError, ProcResult,
-};
+use procfs::{process::Process, ProcError, ProcResult};
 
 #[derive(Debug)]
 pub struct CwdProcessTree {
@@ -18,20 +15,22 @@ pub struct CwdProcessTree {
 #[derive(Debug)]
 pub struct ProcessTree {
     proc: Process,
-    task: Task,
 }
 
 impl ProcessTree {
     pub fn new(pid: u32) -> ProcResult<ProcessTree> {
         let proc = Process::new(pid as i32)?;
 
-        let task = proc.task_main_thread()?;
-
-        Ok(ProcessTree { proc, task })
+        Ok(ProcessTree { proc })
     }
 
     fn children(&self) -> ProcResult<impl IntoIterator<Item = ProcResult<ProcessTree>>> {
-        Ok(self.task.children()?.into_iter().map(ProcessTree::new))
+        Ok(self
+            .proc
+            .task_main_thread()?
+            .children()?
+            .into_iter()
+            .map(ProcessTree::new))
     }
 
     pub fn into_deepest_leaf(self) -> ProcResult<CwdProcessTree> {
