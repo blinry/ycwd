@@ -4,45 +4,45 @@
 
 use std::{ops::Deref, path::PathBuf};
 
-use procfs::{process::Process, ProcError, ProcResult};
+use procfs::{process, ProcError, ProcResult};
 
 #[derive(Debug)]
-pub struct CwdProcessTree {
-    tree: ProcessTree,
+pub struct CwdProcess {
+    proc: Process,
     cwd: PathBuf,
 }
 
-impl CwdProcessTree {
+impl CwdProcess {
     pub fn into_cwd(self) -> PathBuf {
         self.cwd
     }
 }
 
 #[derive(Debug)]
-pub struct ProcessTree {
-    proc: Process,
+pub struct Process {
+    proc: process::Process,
 }
 
-impl ProcessTree {
-    pub fn new(pid: u32) -> ProcResult<ProcessTree> {
-        let proc = Process::new(pid as i32)?;
+impl Process {
+    pub fn new(pid: u32) -> ProcResult<Process> {
+        let proc = process::Process::new(pid as i32)?;
 
-        Ok(ProcessTree { proc })
+        Ok(Process { proc })
     }
 
-    fn children(&self) -> ProcResult<impl IntoIterator<Item = ProcResult<ProcessTree>>> {
+    fn children(&self) -> ProcResult<impl IntoIterator<Item = ProcResult<Process>>> {
         Ok(self
             .proc
             .task_main_thread()?
             .children()?
             .into_iter()
-            .map(ProcessTree::new))
+            .map(Process::new))
     }
 
-    pub fn into_deepest_leaf(self) -> ProcResult<CwdProcessTree> {
-        fn deepest_leaf(depth: usize, tree: ProcessTree) -> (usize, ProcResult<CwdProcessTree>) {
+    pub fn into_deepest_leaf(self) -> ProcResult<CwdProcess> {
+        fn deepest_leaf(depth: usize, tree: Process) -> (usize, ProcResult<CwdProcess>) {
             let children = tree.children();
-            let mut max: Option<(usize, ProcResult<CwdProcessTree>)> = None;
+            let mut max: Option<(usize, ProcResult<CwdProcess>)> = None;
             match children {
                 Ok(children) => {
                     for child in children {
@@ -78,25 +78,25 @@ impl ProcessTree {
     }
 }
 
-impl From<CwdProcessTree> for ProcessTree {
-    fn from(value: CwdProcessTree) -> Self {
-        value.tree
+impl From<CwdProcess> for Process {
+    fn from(value: CwdProcess) -> Self {
+        value.proc
     }
 }
 
-impl Deref for CwdProcessTree {
-    type Target = ProcessTree;
+impl Deref for CwdProcess {
+    type Target = Process;
 
     fn deref(&self) -> &Self::Target {
-        &self.tree
+        &self.proc
     }
 }
 
-impl TryFrom<ProcessTree> for CwdProcessTree {
+impl TryFrom<Process> for CwdProcess {
     type Error = ProcError;
 
-    fn try_from(tree: ProcessTree) -> Result<Self, Self::Error> {
-        let cwd = tree.proc.cwd()?;
-        Ok(CwdProcessTree { cwd, tree })
+    fn try_from(proc: Process) -> Result<Self, Self::Error> {
+        let cwd = proc.proc.cwd()?;
+        Ok(CwdProcess { cwd, proc })
     }
 }
