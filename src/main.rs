@@ -15,7 +15,7 @@ fn get_path() -> ProcResult<PathBuf> {
     let t = ProcessTree::new(
         std::env::args()
             .nth(1)
-            .ok_or("First argument is required.")?
+            .ok_or("First argument is required")?
             .parse()?,
     )?;
 
