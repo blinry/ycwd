@@ -12,6 +12,12 @@ pub struct CwdProcessTree {
     cwd: PathBuf,
 }
 
+impl CwdProcessTree {
+    pub fn into_cwd(self) -> PathBuf {
+        self.cwd
+    }
+}
+
 #[derive(Debug)]
 pub struct ProcessTree {
     proc: Process,
@@ -83,12 +89,6 @@ impl Deref for CwdProcessTree {
 
     fn deref(&self) -> &Self::Target {
         &self.tree
-    }
-}
-
-impl From<CwdProcessTree> for PathBuf {
-    fn from(value: CwdProcessTree) -> Self {
-        value.cwd
     }
 }
 

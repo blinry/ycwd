@@ -19,7 +19,7 @@ fn get_path() -> ProcResult<PathBuf> {
             .parse()?,
     )?;
 
-    t.into_deepest_leaf().map(Into::into)
+    t.into_deepest_leaf().map(|proc| proc.into_cwd())
 }
 
 fn main() -> std::io::Result<()> {
