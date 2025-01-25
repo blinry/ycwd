@@ -58,8 +58,8 @@ impl Process {
                                 let (depth, leaf) = deepest_leaf(depth + 1, child);
                                 match leaf.as_ref() {
                                     Ok(proc) if proc.is_tty() => match max.as_ref() {
-                                        Some((max_depth, _)) => {
-                                            if *max_depth < depth {
+                                        Some((max_depth, saved)) => {
+                                            if *max_depth <= depth || saved.is_err() {
                                                 max = Some((depth, leaf));
                                             }
                                         }
@@ -87,7 +87,9 @@ impl Process {
             }
         }
 
-        deepest_leaf(0, self).1
+        let (_, result) = deepest_leaf(0, self);
+
+        result
     }
 }
 
