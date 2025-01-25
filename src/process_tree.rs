@@ -39,6 +39,13 @@ impl Process {
             .map(Process::new))
     }
 
+    pub fn is_tty(&self) -> bool {
+        match self.proc.stat() {
+            Ok(stat) => stat.tty_nr != 0,
+            Err(_) => false,
+        }
+    }
+
     pub fn into_deepest_leaf(self) -> ProcResult<CwdProcess> {
         fn deepest_leaf(depth: usize, tree: Process) -> (usize, ProcResult<CwdProcess>) {
             let children = tree.children();
@@ -48,16 +55,22 @@ impl Process {
                     for child in children {
                         match child {
                             Ok(child) => {
-                                let leaf = deepest_leaf(depth + 1, child);
-                                match leaf.1.as_ref() {
-                                    Ok(_) => match max.as_ref() {
-                                        Some(value) => {
-                                            if value.0 < leaf.0 {
-                                                max = Some(leaf);
+                                let (depth, leaf) = deepest_leaf(depth + 1, child);
+                                match leaf.as_ref() {
+                                    Ok(proc) if proc.is_tty() => match max.as_ref() {
+                                        Some((max_depth, _)) => {
+                                            if *max_depth < depth {
+                                                max = Some((depth, leaf));
                                             }
                                         }
-                                        None => max = Some(leaf),
+                                        None => max = Some((depth, leaf)),
                                     },
+                                    Ok(proc) => {
+                                        eprintln!(
+                                            "Ignoring process {} (not tty)",
+                                            proc.proc.proc.pid()
+                                        )
+                                    }
                                     Err(err) => eprintln!("Could not go deeper: {err}"),
                                 }
                             }
