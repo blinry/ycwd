@@ -8,11 +8,11 @@ use std::{
     path::PathBuf,
 };
 
-use process_tree::ProcessTree;
+use process_tree::Process;
 use procfs::ProcResult;
 
 fn get_path() -> ProcResult<PathBuf> {
-    let t = ProcessTree::new(
+    let t = Process::new(
         std::env::args()
             .nth(1)
             .ok_or("First argument is required")?
