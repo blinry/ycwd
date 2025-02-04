@@ -7,7 +7,6 @@ use std::{ops::Deref, path::PathBuf};
 
 use procfs::{process, ProcError, ProcResult};
 
-#[derive(Debug)]
 pub struct CwdProcess {
     proc: Process,
     cwd: PathBuf,
@@ -19,7 +18,6 @@ impl CwdProcess {
     }
 }
 
-#[derive(Debug)]
 pub struct Process {
     proc: process::Process,
 }
@@ -77,6 +75,7 @@ impl Process {
             .as_ref()
             .map(|(_, r)| r.is_ok())
             .unwrap_or(false);
+
         // query the cwd of self
         let cwd: ProcResult<_> = self.try_into();
         if cwd.is_ok() || !max_is_ok {
