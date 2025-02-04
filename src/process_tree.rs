@@ -16,6 +16,16 @@ impl CwdProcess {
     pub fn into_cwd(self) -> PathBuf {
         self.cwd
     }
+
+    #[allow(dead_code)]
+    pub fn cwd(&self) -> &PathBuf {
+        &self.cwd
+    }
+
+    #[allow(dead_code)]
+    pub fn process(&self) -> &Process {
+        &self.proc
+    }
 }
 
 pub struct Process {
@@ -120,14 +130,6 @@ impl Deref for Process {
 impl From<CwdProcess> for Process {
     fn from(value: CwdProcess) -> Self {
         value.proc
-    }
-}
-
-impl Deref for CwdProcess {
-    type Target = Process;
-
-    fn deref(&self) -> &Self::Target {
-        &self.proc
     }
 }
 
