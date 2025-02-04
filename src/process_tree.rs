@@ -47,6 +47,33 @@ impl Process {
         }
     }
 
+    #[inline]
+    fn check_children(
+        self,
+        depth: usize,
+        stack: &mut Vec<(usize, ProcResult<Process>)>,
+        max: &mut Option<(usize, ProcResult<CwdProcess>)>,
+    ) {
+        if !self.is_tty() {
+            eprintln!("Ignoring process {} (not tty)", self.proc.pid());
+            return;
+        }
+        match self.children() {
+            Ok(children) => {
+                stack.extend(children.into_iter().map(|proc| (depth + 1, proc)));
+            }
+            Err(err) => eprintln!("Could not go deeper: {err}"),
+        }
+        let max_depth = max.as_ref().map(|(d, _)| *d).unwrap_or(0);
+        let max_is_ok = max.as_ref().map(|(_, r)| r.is_ok()).unwrap_or(false);
+        if depth > max_depth {
+            let cwd_child: ProcResult<CwdProcess> = self.try_into();
+            if cwd_child.is_ok() || !max_is_ok {
+                *max = Some((depth, cwd_child));
+            }
+        }
+    }
+
     pub fn into_deepest_leaf(self) -> ProcResult<CwdProcess> {
         let mut stack: Vec<(usize, ProcResult<Process>)> = match self.children() {
             Ok(children) => children.into_iter().map(|proc| (1, proc)).collect(),
@@ -58,30 +85,10 @@ impl Process {
         let mut max: Option<(usize, ProcResult<CwdProcess>)> = None;
         while let Some((depth, child)) = stack.pop() {
             match child {
-                Ok(child) => {
-                    if !child.is_tty() {
-                        eprintln!("Ignoring process {} (not tty)", child.proc.pid());
-                        continue;
-                    }
-                    match child.children() {
-                        Ok(children) => {
-                            stack.extend(children.into_iter().map(|proc| (depth + 1, proc)));
-                        }
-                        Err(err) => eprintln!("Could not go deeper: {err}"),
-                    }
-                    let max_depth = max.as_ref().map(|(d, _)| *d).unwrap_or(0);
-                    let max_is_ok = max.as_ref().map(|(_, r)| r.is_ok()).unwrap_or(false);
-                    if depth > max_depth {
-                        let cwd_child: ProcResult<CwdProcess> = child.try_into();
-                        if cwd_child.is_ok() || !max_is_ok {
-                            max = Some((depth, cwd_child));
-                        }
-                    }
-                }
+                Ok(child) => child.check_children(depth, &mut stack, &mut max),
                 Err(err) => eprintln!("Could not get child: {err}"),
             }
         }
-
         max.map(|(_, proc_result)| proc_result)
             .unwrap_or_else(|| self.try_into())
     }
