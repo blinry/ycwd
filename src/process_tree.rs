@@ -55,22 +55,30 @@ impl Process {
         max: &mut Option<(usize, ProcResult<CwdProcess>)>,
     ) {
         if !self.is_tty() {
+            // this can happen when forking of a terminal
+            // e.g. some random deeply-nested gcc process
+            // we only want to get cwds of procs with tty
             eprintln!("Ignoring process {} (not tty)", self.proc.pid());
             return;
         }
+        // add the children to the stack
         match self.children() {
-            Ok(children) => {
-                stack.extend(children.into_iter().map(|proc| (depth + 1, proc)));
-            }
+            Ok(children) => stack.extend(children.into_iter().map(|proc| (depth + 1, proc))),
             Err(err) => eprintln!("Could not go deeper: {err}"),
         }
+        // the current maximum depth
         let max_depth = max.as_ref().map(|(d, _)| *d).unwrap_or(0);
+        if depth <= max_depth {
+            // depth isn't greater than max_depth
+            // self is not a leaf, can be ignored
+            return;
+        }
         let max_is_ok = max.as_ref().map(|(_, r)| r.is_ok()).unwrap_or(false);
-        if depth > max_depth {
-            let cwd_child: ProcResult<CwdProcess> = self.try_into();
-            if cwd_child.is_ok() || !max_is_ok {
-                *max = Some((depth, cwd_child));
-            }
+        // query the cwd of self
+        let cwd_child: ProcResult<CwdProcess> = self.try_into();
+        if cwd_child.is_ok() || !max_is_ok {
+            // could read cwd or max wasn't ok
+            *max = Some((depth, cwd_child));
         }
     }
 
@@ -79,18 +87,21 @@ impl Process {
             Ok(children) => children.into_iter().map(|proc| (1, proc)).collect(),
             Err(error) => {
                 eprintln!("Could not get children: {error}");
+                // return self as we couldn't get the children
                 return self.try_into();
             }
         };
+        // the cwd of the process with the maximum depth
         let mut max: Option<(usize, ProcResult<CwdProcess>)> = None;
+        // loop over all the children in the stack
         while let Some((depth, child)) = stack.pop() {
             match child {
                 Ok(child) => child.check_children(depth, &mut stack, &mut max),
                 Err(err) => eprintln!("Could not get child: {err}"),
             }
         }
-        max.map(|(_, proc_result)| proc_result)
-            .unwrap_or_else(|| self.try_into())
+        // return the cwd ProcResult with the maximum depth or fallback to self
+        max.map(|(_, r)| r).unwrap_or_else(|| self.try_into())
     }
 }
 
