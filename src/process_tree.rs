@@ -78,10 +78,10 @@ impl Process {
             .map(|(_, r)| r.is_ok())
             .unwrap_or(false);
         // query the cwd of self
-        let cwd_child: ProcResult<CwdProcess> = self.try_into();
-        if cwd_child.is_ok() || !max_is_ok {
+        let cwd: ProcResult<_> = self.try_into();
+        if cwd.is_ok() || !max_is_ok {
             // could read cwd or max wasn't ok
-            *deapest_leaf = Some((depth, cwd_child));
+            *deapest_leaf = Some((depth, cwd));
         }
     }
 
