@@ -48,49 +48,42 @@ impl Process {
     }
 
     pub fn into_deepest_leaf(self) -> ProcResult<CwdProcess> {
-        fn deepest_leaf(depth: usize, tree: Process) -> (usize, ProcResult<CwdProcess>) {
-            let children = tree.children();
-            let mut max: Option<(usize, ProcResult<CwdProcess>)> = None;
-            match children {
-                Ok(children) => {
-                    for child in children {
-                        match child {
-                            Ok(child) => {
-                                let (depth, leaf) = deepest_leaf(depth + 1, child);
-                                match leaf.as_ref() {
-                                    Ok(proc) if proc.is_tty() => match max.as_ref() {
-                                        Some((max_depth, saved)) => {
-                                            if *max_depth <= depth || saved.is_err() {
-                                                max = Some((depth, leaf));
-                                            }
-                                        }
-                                        None => max = Some((depth, leaf)),
-                                    },
-                                    Ok(proc) => {
-                                        eprintln!(
-                                            "Ignoring process {} (not tty)",
-                                            proc.proc.proc.pid()
-                                        )
-                                    }
-                                    Err(err) => eprintln!("Could not go deeper: {err}"),
-                                }
-                            }
-                            Err(err) => eprintln!("Could not get child: {err}"),
+        let mut stack: Vec<(usize, ProcResult<Process>)> = match self.children() {
+            Ok(children) => children.into_iter().map(|proc| (1, proc)).collect(),
+            Err(error) => {
+                eprintln!("Could not get children: {error}");
+                return self.try_into();
+            }
+        };
+        let mut max: Option<(usize, ProcResult<CwdProcess>)> = None;
+        while let Some((depth, child)) = stack.pop() {
+            match child {
+                Ok(child) => {
+                    if !child.is_tty() {
+                        eprintln!("Ignoring process {} (not tty)", child.proc.pid());
+                        continue;
+                    }
+                    match child.children() {
+                        Ok(children) => {
+                            stack.extend(children.into_iter().map(|proc| (depth + 1, proc)));
+                        }
+                        Err(err) => eprintln!("Could not go deeper: {err}"),
+                    }
+                    let max_depth = max.as_ref().map(|(d, _)| *d).unwrap_or(0);
+                    let max_is_ok = max.as_ref().map(|(_, r)| r.is_ok()).unwrap_or(false);
+                    if depth > max_depth {
+                        let cwd_child: ProcResult<CwdProcess> = child.try_into();
+                        if cwd_child.is_ok() || !max_is_ok {
+                            max = Some((depth, cwd_child));
                         }
                     }
                 }
-                Err(err) => eprintln!("Could not get children: {err}"),
-            }
-
-            match max {
-                Some(max) => max,
-                None => (depth, tree.try_into()),
+                Err(err) => eprintln!("Could not get child: {err}"),
             }
         }
 
-        let (_, result) = deepest_leaf(0, self);
-
-        result
+        max.map(|(_, proc_result)| proc_result)
+            .unwrap_or_else(|| self.try_into())
     }
 }
 
