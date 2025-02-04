@@ -109,6 +109,14 @@ impl Process {
     }
 }
 
+impl Deref for Process {
+    type Target = process::Process;
+
+    fn deref(&self) -> &Self::Target {
+        &self.proc
+    }
+}
+
 impl From<CwdProcess> for Process {
     fn from(value: CwdProcess) -> Self {
         value.proc
