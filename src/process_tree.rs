@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: 2025 blinry <mail@blinry.org>
+// SPDX-FileCopyrightText: 2025 Joshix <joshix@asozial.org>
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
