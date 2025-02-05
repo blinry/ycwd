@@ -18,7 +18,7 @@ fn get_path() -> ProcResult<PathBuf> {
     let t = Process::new(
         std::env::args()
             .nth(1)
-            .ok_or("First argument is required")?
+            .ok_or("Provide a process ID as the first argument")?
             .parse()?,
     )?;
 
@@ -33,7 +33,7 @@ fn get_path_with_fallbacks() -> OsString {
 
     match std::env::var_os("HOME") {
         Some(home) => return home,
-        None => eprintln!("HOME not set"),
+        None => eprintln!("Can't use $HOME as fallback, because it is not set"),
     }
 
     "/".into()
