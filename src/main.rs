@@ -1,69 +1,64 @@
 // SPDX-FileCopyrightText: 2025 blinry <mail@blinry.org>
+// SPDX-FileCopyrightText: 2025 Joshix <joshix@asozial.org>
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use procfs::{process::Process, ProcError, ProcResult};
 use std::path::PathBuf;
 
-#[derive(Debug)]
-struct Process {
-    cwd: PathBuf,
-    tty: i32,
+fn crawl_children(pid: i32) -> ProcResult<Vec<(usize, Process)>> {
+    let mut frontier = vec![(0, Process::new(pid)?)];
+    let mut processes: Vec<(usize, Process)> = vec![];
+    while let Some((depth, process)) = frontier.pop() {
+        for task in process.tasks()? {
+            for child in task?.children()? {
+                frontier.push((depth + 1, Process::new(child as i32)?));
+            }
+        }
+        processes.push((depth, process));
+    }
+    Ok(processes)
 }
 
-#[derive(Debug)]
-struct ProcessTree {
-    node: Process,
-    children: Vec<ProcessTree>,
+fn get_cwd() -> ProcResult<PathBuf> {
+    let pid = std::env::args()
+        .nth(1)
+        .ok_or("Provide a process ID as the first argument")?
+        .parse()?;
+
+    // 1. Construct a vector of (depth, process) tuples of all child processes.
+    let mut processes = crawl_children(pid)?;
+
+    // 2. Sort the vector by depth in descending order.
+    processes.sort_by(|a, b| b.0.cmp(&a.0));
+
+    // 3. Find the first process that is connected to a tty, and where we can read its cwd.
+    for (_, process) in &processes {
+        if process.stat()?.tty_nr != 0 {
+            if let Ok(cwd) = process.cwd() {
+                return Ok(cwd);
+            }
+        }
+    }
+
+    Err(ProcError::Other("No suitable process found".to_string()))
 }
 
-impl ProcessTree {
-    fn new(pid: u32) -> ProcessTree {
-        let p = procfs::process::Process::new(pid as i32).expect("Process should exist");
-        let node = Process {
-            cwd: p.cwd().expect("Process should have a cwd"),
-            tty: p.stat().expect("Process should hav status info").tty_nr,
-        };
+fn get_cwd_with_fallbacks() -> PathBuf {
+    match get_cwd() {
+        Ok(path) => return path,
+        Err(error) => eprintln!("Could not get cwd, using fallback: {error}"),
+    };
 
-        let t = p
-            .task_main_thread()
-            .expect("Process should have main thread");
-        let c_pids = t.children().expect("Task should have children");
-        let children = c_pids
-            .iter()
-            .map(|&c_pid| ProcessTree::new(c_pid))
-            .collect();
-        ProcessTree { node, children }
+    match std::env::var_os("HOME") {
+        Some(home) => return home.into(),
+        None => eprintln!("Can't use $HOME as fallback, because it is not set"),
     }
 
-    fn leaf_nodes_with_tty(&self) -> Vec<&Process> {
-        let leaves: Vec<&Process> = self
-            .children
-            .iter()
-            .flat_map(|c| c.leaf_nodes_with_tty())
-            .collect();
-
-        if !leaves.is_empty() {
-            return leaves;
-        }
-
-        if self.node.tty != 0 {
-            vec![&self.node]
-        } else {
-            vec![]
-        }
-    }
+    "/".into()
 }
 
 fn main() {
-    let t = ProcessTree::new(
-        std::env::args()
-            .nth(1)
-            .expect("PID should be provided as first argument")
-            .parse()
-            .expect("PID should be a number"),
-    );
-    let leaves = t.leaf_nodes_with_tty();
-
-    // Print cwd of first leaf.
-    println!("{}", leaves[0].cwd.display());
+    let path = get_cwd_with_fallbacks();
+    println!("{}", path.display());
 }
