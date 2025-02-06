@@ -7,6 +7,9 @@ use std::{ops::Deref, path::PathBuf};
 
 use procfs::{process, ProcError, ProcResult};
 
+type Depth = usize;
+type Frontier = Vec<(Depth, ProcResult<Process>)>;
+
 pub struct CwdProcess {
     proc: Process,
     cwd: PathBuf,
@@ -47,13 +50,9 @@ impl Process {
     }
 
     #[inline]
-    fn add_children_to_stack(
-        &self,
-        depth: usize,
-        stack: &mut Vec<(usize, ProcResult<Process>)>,
-    ) -> ProcResult<()> {
+    fn add_children_to_stack(&self, depth: Depth, frontier: &mut Frontier) -> ProcResult<()> {
         for task in self.tasks()? {
-            stack.extend(
+            frontier.extend(
                 task?
                     .children()?
                     .into_iter()
@@ -67,9 +66,9 @@ impl Process {
     #[inline]
     fn find_deepest_leaf(
         self,
-        depth: usize,
-        stack: &mut Vec<(usize, ProcResult<Process>)>,
-        deepest_leaf: &mut Option<(usize, ProcResult<CwdProcess>)>,
+        depth: Depth,
+        frontier: &mut Frontier,
+        deepest_leaf: &mut Option<(Depth, ProcResult<CwdProcess>)>,
     ) {
         if !self.is_tty() {
             // this can happen when forking of a terminal
@@ -79,7 +78,7 @@ impl Process {
             return;
         }
         // add the children to the stack
-        if let Err(err) = self.add_children_to_stack(depth + 1, stack) {
+        if let Err(err) = self.add_children_to_stack(depth + 1, frontier) {
             eprintln!("Error while getting children of {}: {err}", self.pid());
         }
         // the current maximum depth
@@ -103,14 +102,14 @@ impl Process {
     }
 
     pub fn into_deepest_leaf(self) -> ProcResult<CwdProcess> {
-        let mut stack: Vec<(usize, ProcResult<Process>)> = vec![];
+        let mut stack: Vec<(Depth, ProcResult<Process>)> = vec![];
         if let Err(error) = self.add_children_to_stack(1, &mut stack) {
             eprintln!("Could not get children: {error}");
             // return self as we couldn't get the children
             return self.try_into();
         };
         // the cwd of the process with the maximum depth
-        let mut deepest_leaf: Option<(usize, ProcResult<CwdProcess>)> = None;
+        let mut deepest_leaf: Option<(Depth, ProcResult<CwdProcess>)> = None;
         // loop over all the children in the stack
         while let Some((depth, child)) = stack.pop() {
             match child {
