@@ -8,7 +8,7 @@ use std::{ops::Deref, path::PathBuf};
 use procfs::{process, ProcError, ProcResult};
 
 type Depth = usize;
-type Frontier = Vec<(Depth, ProcResult<Process>)>;
+type Frontier = Vec<(Depth, Process)>;
 
 pub struct CwdProcess {
     proc: Process,
@@ -52,12 +52,14 @@ impl Process {
     #[inline]
     fn add_children_to_stack(&self, depth: Depth, frontier: &mut Frontier) -> ProcResult<()> {
         for task in self.tasks()? {
-            frontier.extend(
-                task?
-                    .children()?
-                    .into_iter()
-                    .map(|pid| (depth, Process::new(pid))),
-            );
+            let children = task?.children()?;
+            frontier.reserve(children.len());
+            for child in children {
+                match Process::new(child) {
+                    Ok(child) => frontier.push((depth, child)),
+                    Err(err) => eprintln!("Could not get child of {}: {err}", self.pid()),
+                }
+            }
         }
 
         Ok(())
@@ -102,8 +104,8 @@ impl Process {
     }
 
     pub fn into_deepest_leaf(self) -> ProcResult<CwdProcess> {
-        let mut stack: Vec<(Depth, ProcResult<Process>)> = vec![];
-        if let Err(error) = self.add_children_to_stack(1, &mut stack) {
+        let mut frontier: Frontier = vec![];
+        if let Err(error) = self.add_children_to_stack(1, &mut frontier) {
             eprintln!("Could not get children: {error}");
             // return self as we couldn't get the children
             return self.try_into();
@@ -111,11 +113,8 @@ impl Process {
         // the cwd of the process with the maximum depth
         let mut deepest_leaf: Option<(Depth, ProcResult<CwdProcess>)> = None;
         // loop over all the children in the stack
-        while let Some((depth, child)) = stack.pop() {
-            match child {
-                Ok(child) => child.find_deepest_leaf(depth, &mut stack, &mut deepest_leaf),
-                Err(err) => eprintln!("Could not get child: {err}"),
-            }
+        while let Some((depth, child)) = frontier.pop() {
+            child.find_deepest_leaf(depth, &mut frontier, &mut deepest_leaf);
         }
         // return the cwd ProcResult with the maximum depth or fallback to self
         deepest_leaf
