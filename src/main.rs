@@ -1,69 +1,47 @@
 // SPDX-FileCopyrightText: 2025 blinry <mail@blinry.org>
+// SPDX-FileCopyrightText: 2025 Joshix <joshix@asozial.org>
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::path::PathBuf;
+mod process_tree;
 
-#[derive(Debug)]
-struct Process {
-    cwd: PathBuf,
-    tty: i32,
-}
+use std::{
+    ffi::OsString,
+    io::{stdout, Write},
+    path::PathBuf,
+};
 
-#[derive(Debug)]
-struct ProcessTree {
-    node: Process,
-    children: Vec<ProcessTree>,
-}
+use process_tree::Process;
+use procfs::ProcResult;
 
-impl ProcessTree {
-    fn new(pid: u32) -> ProcessTree {
-        let p = procfs::process::Process::new(pid as i32).expect("Process should exist");
-        let node = Process {
-            cwd: p.cwd().expect("Process should have a cwd"),
-            tty: p.stat().expect("Process should hav status info").tty_nr,
-        };
-
-        let t = p
-            .task_main_thread()
-            .expect("Process should have main thread");
-        let c_pids = t.children().expect("Task should have children");
-        let children = c_pids
-            .iter()
-            .map(|&c_pid| ProcessTree::new(c_pid))
-            .collect();
-        ProcessTree { node, children }
-    }
-
-    fn leaf_nodes_with_tty(&self) -> Vec<&Process> {
-        let leaves: Vec<&Process> = self
-            .children
-            .iter()
-            .flat_map(|c| c.leaf_nodes_with_tty())
-            .collect();
-
-        if !leaves.is_empty() {
-            return leaves;
-        }
-
-        if self.node.tty != 0 {
-            vec![&self.node]
-        } else {
-            vec![]
-        }
-    }
-}
-
-fn main() {
-    let t = ProcessTree::new(
+fn get_path() -> ProcResult<PathBuf> {
+    let t = Process::new(
         std::env::args()
             .nth(1)
-            .expect("PID should be provided as first argument")
-            .parse()
-            .expect("PID should be a number"),
-    );
-    let leaves = t.leaf_nodes_with_tty();
+            .ok_or("First argument is required")?
+            .parse()?,
+    )?;
 
-    // Print cwd of first leaf.
-    println!("{}", leaves[0].cwd.display());
+    t.into_deepest_leaf().map(|proc| proc.into_cwd())
+}
+
+fn get_path_with_fallbacks() -> OsString {
+    match get_path() {
+        Ok(path) => return path.into(),
+        Err(error) => eprintln!("Could not get cwd: {error}"),
+    };
+
+    match std::env::var_os("HOME") {
+        Some(home) => return home,
+        None => eprintln!("HOME not set"),
+    }
+
+    "/".into()
+}
+
+fn main() -> std::io::Result<()> {
+    let path = get_path_with_fallbacks();
+    stdout().write_all(path.as_encoded_bytes())?;
+    println!();
+    Ok(())
 }
