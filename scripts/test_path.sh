@@ -17,9 +17,9 @@ RESULT="$(cargo run -q "$$")"
 
 if [ "$RESULT" = "$CWD" ]
 then
-    echo "Got cwd: $RESULT"
+    echo "Got cwd: '$RESULT'"
 else
-    echo "Expected: $CWD"
-    echo "Got:      $RESULT"
+    echo "Expected: '$CWD'"
+    echo "Got:      '$RESULT'"
     exit 1
 fi

@@ -11,7 +11,7 @@ EXIT_CODE=0
 
 for file in "${SCRIPTS_DIR}"/dirs/*
 do
-    echo + "${SCRIPTS_DIR}/test_path.sh" "${file}" >&2
+    echo "+ ${SCRIPTS_DIR}/test_path.sh '${file}'" >&2
     "${SCRIPTS_DIR}/test_path.sh" "${file}" || EXIT_CODE=1
 done
 
