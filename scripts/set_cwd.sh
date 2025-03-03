@@ -2,6 +2,8 @@
 
 set -eu
 
+id
+
 CWD="$1"
 COUNTER="${2:-50}"
 
