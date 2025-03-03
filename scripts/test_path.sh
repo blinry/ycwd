@@ -11,7 +11,7 @@ sudo sh -c ''
 
 "$SET_CWD" "$CWD" &
 
-sleep 1
+sleep 2
 
 RESULT="$(cargo run -q "$$")"
 
