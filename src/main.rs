@@ -62,5 +62,7 @@ fn get_cwd_with_fallbacks() -> PathBuf {
 
 fn main() -> std::io::Result<()> {
     let path = get_cwd_with_fallbacks();
-    stdout().write_all(path.as_os_str().as_bytes())
+    let mut out = stdout().lock();
+    out.write_all(path.as_os_str().as_bytes())?;
+    out.write_all("\n".as_bytes())
 }
