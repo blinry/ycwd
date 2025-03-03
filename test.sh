@@ -2,7 +2,7 @@
 
 set -eu
 
-SCRIPTS_DIR="$(dirname "$0")"
+SCRIPTS_DIR="$(dirname "$0")/scripts"
 cd "${SCRIPTS_DIR}"
 SCRIPTS_DIR="$(pwd)"
 cd - > /dev/null
