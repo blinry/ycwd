@@ -2,6 +2,8 @@
 
 set -eu
 
+cargo build -q
+
 SCRIPTS_DIR="$(dirname "$0")"
 cd "${SCRIPTS_DIR}"
 SCRIPTS_DIR="$(pwd)"
