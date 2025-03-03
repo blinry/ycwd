@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use procfs::{process::Process, ProcError, ProcResult};
+use std::io::{stdout, Write};
+use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 
 fn crawl_children(pid: i32) -> ProcResult<Vec<(usize, Process)>> {
@@ -58,7 +60,9 @@ fn get_cwd_with_fallbacks() -> PathBuf {
     "/".into()
 }
 
-fn main() {
+fn main() -> std::io::Result<()> {
     let path = get_cwd_with_fallbacks();
-    println!("{}", path.display());
+    let mut out = stdout().lock();
+    out.write_all(path.as_os_str().as_bytes())?;
+    out.write_all("\n".as_bytes())
 }
