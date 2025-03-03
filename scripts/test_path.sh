@@ -7,12 +7,13 @@ SET_CWD="$(dirname "$0")/set_cwd.sh"
 CWD="${1:-/tmp}"
 mkdir -p "$CWD"
 
-# echo "'$SET_CWD' '$CWD' &" >&2
+sudo sh -c ''
+
 "$SET_CWD" "$CWD" &
 
 sleep 1
 
-RESULT="$(cargo run "$$" 2> /dev/null)"
+RESULT="$(cargo run -q "$$")"
 
 if [ "$RESULT" = "$CWD" ]
 then

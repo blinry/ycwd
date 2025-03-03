@@ -1,0 +1,11 @@
+name: Test
+on: [push, pull_request]
+jobs:
+  test:
+    name: Run test script
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Run test script
+        run: ./test.sh

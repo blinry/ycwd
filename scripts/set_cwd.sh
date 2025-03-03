@@ -3,7 +3,7 @@
 set -eu
 
 CWD="$1"
-COUNTER="${2:-20}"
+COUNTER="${2:-50}"
 
 if [ "$COUNTER" -eq "0" ]
 then
