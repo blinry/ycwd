@@ -3,21 +3,69 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use procfs::{process::Process, ProcError, ProcResult};
+use procfs::{process::Process as ProcProcess, ProcError, ProcResult};
 use std::path::PathBuf;
 
-fn crawl_children(pid: i32) -> ProcResult<Vec<(usize, Process)>> {
-    let mut frontier = vec![(0, Process::new(pid)?)];
-    let mut processes: Vec<(usize, Process)> = vec![];
-    while let Some((depth, process)) = frontier.pop() {
-        for task in process.tasks()? {
+struct ProcessWithDepth {
+    depth: usize,
+    process: ProcProcess,
+}
+
+impl ProcessWithDepth {
+    fn valid_cwd(&self) -> ProcResult<Option<PathBuf>> {
+        if !self.connected_to_terminal()? {
+            return Ok(None);
+        }
+        Ok(self.process.cwd().ok())
+    }
+
+    fn connected_to_terminal(&self) -> ProcResult<bool> {
+        Ok(self.process.stat()?.tty_nr != 0)
+    }
+
+    fn children(&self) -> ProcResult<Vec<ProcessWithDepth>> {
+        let mut children = vec![];
+        for task in self.process.tasks()? {
             for child in task?.children()? {
-                frontier.push((depth + 1, Process::new(child as i32)?));
+                children.push(ProcessWithDepth {
+                    depth: self.depth + 1,
+                    process: ProcProcess::new(child as i32)?,
+                });
             }
         }
-        processes.push((depth, process));
+        Ok(children)
     }
-    Ok(processes)
+}
+
+struct ProcessesWithDepth(Vec<ProcessWithDepth>);
+
+impl ProcessesWithDepth {
+    fn init(pid: i32) -> ProcResult<Self> {
+        Ok(Self(vec![ProcessWithDepth {
+            depth: 0,
+            process: ProcProcess::new(pid)?,
+        }]))
+    }
+
+    fn crawl_all_children(&mut self) -> ProcResult<()> {
+        let mut frontier = std::mem::take(&mut self.0);
+        while let Some(process) = frontier.pop() {
+            frontier.extend(process.children()?);
+            self.0.push(process);
+        }
+        Ok(())
+    }
+
+    fn sort_by_depth_descending(&mut self) {
+        self.0.sort_by(|a, b| b.depth.cmp(&a.depth));
+    }
+
+    fn first_valid_cwd(self) -> ProcResult<PathBuf> {
+        self.0
+            .iter()
+            .find_map(|p| p.valid_cwd().transpose())
+            .ok_or_else(|| ProcError::Other("No suitable process found".to_string()))?
+    }
 }
 
 fn get_cwd() -> ProcResult<PathBuf> {
@@ -26,29 +74,17 @@ fn get_cwd() -> ProcResult<PathBuf> {
         .ok_or("Provide a process ID as the first argument")?
         .parse()?;
 
-    // 1. Construct a vector of (depth, process) tuples of all child processes.
-    let mut processes = crawl_children(pid)?;
-
-    // 2. Sort the vector by depth in descending order.
-    processes.sort_by(|a, b| b.0.cmp(&a.0));
-
-    // 3. Find the first process that is connected to a tty, and where we can read its cwd.
-    for (_, process) in &processes {
-        if process.stat()?.tty_nr != 0 {
-            if let Ok(cwd) = process.cwd() {
-                return Ok(cwd);
-            }
-        }
-    }
-
-    Err(ProcError::Other("No suitable process found".to_string()))
+    let mut processes = ProcessesWithDepth::init(pid)?;
+    processes.crawl_all_children()?;
+    processes.sort_by_depth_descending();
+    processes.first_valid_cwd()
 }
 
 fn get_cwd_with_fallbacks() -> PathBuf {
     match get_cwd() {
         Ok(path) => return path,
         Err(error) => eprintln!("Could not get cwd, using fallback: {error}"),
-    };
+    }
 
     match std::env::var_os("HOME") {
         Some(home) => return home.into(),
