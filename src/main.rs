@@ -15,7 +15,7 @@ fn get_cwd_with_fallbacks() -> PathBuf {
     match get_cwd() {
         Ok(path) => return path,
         Err(error) => eprintln!("Could not get cwd, using fallback: {error}"),
-    };
+    }
 
     match std::env::var_os("HOME") {
         Some(home) => return home.into(),
@@ -35,7 +35,7 @@ fn get_cwd() -> ProcResult<PathBuf> {
     let mut processes = crawl_children(pid)?;
 
     // 2. Sort the vector by depth in descending order.
-    processes.sort_by_key(|b| std::cmp::Reverse(b.0));
+    processes.sort_by_key(|p| std::cmp::Reverse(p.0));
 
     // 3. Find the first process that is connected to a tty, and where we can read its cwd.
     for (_, process) in &processes {
@@ -46,7 +46,7 @@ fn get_cwd() -> ProcResult<PathBuf> {
         }
     }
 
-    Err(ProcError::Other("No suitable process found".to_string()))
+    Err(ProcError::Other("No suitable process found".to_owned()))
 }
 
 fn crawl_children(pid: i32) -> ProcResult<Vec<(usize, Process)>> {
@@ -55,7 +55,7 @@ fn crawl_children(pid: i32) -> ProcResult<Vec<(usize, Process)>> {
     while let Some((depth, process)) = frontier.pop() {
         for task in process.tasks()? {
             for child in task?.children()? {
-                frontier.push((depth + 1, Process::new(child as i32)?));
+                frontier.push((depth + 1, Process::new(child.cast_signed())?));
             }
         }
         processes.push((depth, process));

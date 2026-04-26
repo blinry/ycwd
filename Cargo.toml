@@ -15,3 +15,7 @@ edition = "2021"
 
 [dependencies]
 procfs = "0.18.0"
+
+[lints.clippy]
+pedantic = "warn"
+nursery = "warn"
